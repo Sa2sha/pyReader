@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>OCR Сервис</title>
+    <meta charset="UTF-8">
+</head>
+<body>
+    <h1>Распознавание текста</h1>
+
+    <!-- Форма загрузки файла -->
+    <form id="uploadForm" enctype="multipart/form-data">
+        <label>Выберите файл (PNG, JPG, JPEG, PDF):</label>
+        <br><br>
+        <input type="file" name="file" accept=".png,.jpg,.jpeg,.pdf" required>
+        <br><br>
+
+        <label>Выберите OCR движок:</label>
+        <br>
+        <select name="ocr_engine">
+            <option value="tesseract">Tesseract</option>
+            <option value="easyocr">EasyOCR</option>
+        </select>
+        <br><br>
+
+        <button type="submit">Распознать текст</button>
+    </form>
+
+    <hr>
+
+    <!-- Вывод результата -->
+    <h2>Результат:</h2>
+    <div id="result" style="white-space: pre-wrap; border: 1px solid #ccc; padding: 10px; min-height: 100px;">
+        Здесь появится распознанный текст...
+    </div>
+
+    <!-- Отправка -->
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            var formData = new FormData(this);
+            var resultDiv = document.getElementById('result');
+
+            resultDiv.textContent = 'Обработка...';
+
+            try {
+                var response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                var data = await response.json();
+
+                if (data.error) {
+                    resultDiv.textContent = 'Ошибка: ' + data.error;
+                } else {
+                    resultDiv.textContent = data.text;
+                }
+            } catch (error) {
+                resultDiv.textContent = 'Ошибка: ' + error;
+            }
+        });
+    </script>
+</body>
+</html>
