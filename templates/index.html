@@ -1,47 +1,410 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
-    <title>OCR Сервис</title>
+    <title>OCR Сервис - Распознавание текста</title>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 800px;
+            width: 100%;
+            padding: 40px;
+            animation: slideUp 0.5s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+            text-align: center;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 10px;
+            color: #555;
+            font-weight: 600;
+            font-size: 1.1em;
+        }
+
+        .file-upload-wrapper {
+            position: relative;
+            width: 100%;
+            cursor: pointer;
+        }
+
+        .file-upload-wrapper input[type="file"] {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+            z-index: 2;
+        }
+
+        .file-upload-label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: #f8f9fa;
+            border: 2px dashed #667eea;
+            border-radius: 15px;
+            transition: all 0.3s ease;
+            color: #666;
+            pointer-events: none;
+            min-height: 80px;
+        }
+
+        .file-upload-wrapper:hover .file-upload-label {
+            background: #e9ecef;
+            border-color: #764ba2;
+            transform: translateY(-2px);
+        }
+
+        .file-upload-wrapper.has-file .file-upload-label {
+            border-color: #28a745;
+            background: #f0fff4;
+            border-style: solid;
+        }
+
+        .file-upload-label .icon {
+            margin-right: 10px;
+            font-size: 1.5em;
+        }
+
+        select {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 1em;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .btn-submit {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.2em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            letter-spacing: 1px;
+        }
+
+        .btn-submit:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-submit:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .btn-submit:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .divider {
+            margin: 40px 0;
+            border: none;
+            height: 2px;
+            background: linear-gradient(to right, transparent, #e0e0e0, transparent);
+        }
+
+        .result-section {
+            margin-top: 30px;
+        }
+
+        .result-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .result-header h2 {
+            color: #333;
+            flex: 1;
+        }
+
+        .result-status {
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            background: #f0f0f0;
+            color: #666;
+        }
+
+        .result-box {
+            background: #f8f9fa;
+            border: 2px solid #e0e0e0;
+            border-radius: 15px;
+            padding: 20px;
+            min-height: 200px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-size: 1em;
+            line-height: 1.6;
+            color: #333;
+            transition: all 0.3s ease;
+        }
+
+        .result-box.processing {
+            border-color: #667eea;
+            background: #f0f4ff;
+            animation: pulse 1.5s infinite;
+        }
+
+        .result-box.error {
+            border-color: #dc3545;
+            background: #fff5f5;
+            color: #dc3545;
+        }
+
+        .result-box.success {
+            border-color: #28a745;
+            background: #f0fff4;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+
+        .copy-btn {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 8px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.3s ease;
+        }
+
+        .copy-btn:hover {
+            background: #764ba2;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .file-info {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            font-size: 0.9em;
+            color: #666;
+            display: none;
+        }
+
+        .file-info.show {
+            display: block;
+            animation: slideUp 0.3s ease-out;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
 </head>
 <body>
-    <h1>Распознавание текста</h1>
+    <div class="container">
+        <h1>📝 Распознавание текста</h1>
+        <p class="subtitle">Загрузите изображение или PDF файл для извлечения текста</p>
 
-    <!-- Форма загрузки файла -->
-    <form id="uploadForm" enctype="multipart/form-data">
-        <label>Выберите файл (PNG, JPG, JPEG, PDF):</label>
-        <br><br>
-        <input type="file" name="file" accept=".png,.jpg,.jpeg,.pdf" required>
-        <br><br>
+        <!-- Форма загрузки файла -->
+        <form id="uploadForm" enctype="multipart/form-data">
+            <div class="form-group">
+                <label>📁 Выберите файл:</label>
+                <div class="file-upload-wrapper" id="fileUploadWrapper">
+                    <input type="file"
+                           name="file"
+                           accept=".png,.jpg,.jpeg,.pdf"
+                           required
+                           id="fileInput">
+                    <div class="file-upload-label" id="fileLabel">
+                        <span class="icon">📂</span>
+                        <span>Нажмите для выбора файла</span>
+                    </div>
+                </div>
+                <div class="file-info" id="fileInfo"></div>
+            </div>
 
-        <label>Выберите OCR движок:</label>
-        <br>
-        <select name="ocr_engine">
-            <option value="tesseract">Tesseract</option>
-            <option value="easyocr">EasyOCR</option>
-        </select>
-        <br><br>
+            <div class="form-group">
+                <label>🔍 Выберите OCR движок:</label>
+                <select name="ocr_engine" id="ocrEngine">
+                    <option value="tesseract">Tesseract</option>
+                    <option value="easyocr">EasyOCR</option>
+                </select>
+            </div>
 
-        <button type="submit">Распознать текст</button>
-    </form>
+            <button type="submit" class="btn-submit" id="submitBtn">
+                🚀 Распознать текст
+            </button>
+        </form>
 
-    <hr>
+        <hr class="divider">
 
-    <!-- Вывод результата -->
-    <h2>Результат:</h2>
-    <div id="result" style="white-space: pre-wrap; border: 1px solid #ccc; padding: 10px; min-height: 100px;">
-        Здесь появится распознанный текст...
+        <!-- Вывод результата -->
+        <div class="result-section">
+            <div class="result-header">
+                <h2>📋 Результат:</h2>
+                <span class="result-status" id="statusBadge">Ожидание</span>
+            </div>
+            <div id="result" class="result-box">
+                <span style="color: #999;">Здесь появится распознанный текст...</span>
+            </div>
+            <button class="copy-btn" id="copyBtn" style="display: none;" onclick="copyResult()">
+                📋 Копировать текст
+            </button>
+        </div>
     </div>
 
-    <!-- Отправка -->
     <script>
+        // Обработчик выбора файла
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            const fileLabel = document.getElementById('fileLabel');
+            const fileInfo = document.getElementById('fileInfo');
+            const fileUploadWrapper = document.getElementById('fileUploadWrapper');
+
+            if (file) {
+                // Обновляем текст в label
+                fileLabel.innerHTML = `
+                    <span class="icon">✅</span>
+                    <span>Файл выбран</span>
+                `;
+
+                // Добавляем класс для зеленой рамки
+                fileUploadWrapper.classList.add('has-file');
+
+                // Показываем информацию о файле
+                const fileSize = (file.size / 1024).toFixed(2);
+                fileInfo.innerHTML = `
+                    <strong>Имя файла:</strong> ${file.name}<br>
+                    <strong>Размер:</strong> ${fileSize} KB<br>
+                    <strong>Тип:</strong> ${file.type || 'Неизвестный'}
+                `;
+                fileInfo.classList.add('show');
+            } else {
+                // Сбрасываем если файл не выбран
+                fileLabel.innerHTML = `
+                    <span class="icon">📂</span>
+                    <span>Нажмите для выбора файла</span>
+                `;
+                fileUploadWrapper.classList.remove('has-file');
+                fileInfo.classList.remove('show');
+            }
+        });
+
+        // Обработка отправки формы
         document.getElementById('uploadForm').addEventListener('submit', async function(e) {
             e.preventDefault();
 
             var formData = new FormData(this);
             var resultDiv = document.getElementById('result');
+            var submitBtn = document.getElementById('submitBtn');
+            var statusBadge = document.getElementById('statusBadge');
+            var copyBtn = document.getElementById('copyBtn');
 
-            resultDiv.textContent = 'Обработка...';
+            // Проверка наличия файла
+            var fileInput = document.getElementById('fileInput');
+            if (!fileInput.files.length) {
+                alert('Пожалуйста, выберите файл');
+                return;
+            }
+
+            // Сброс состояния
+            resultDiv.className = 'result-box processing';
+            resultDiv.innerHTML = '<span class="loading-spinner"></span>Обработка...';
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '⏳ Обработка...';
+            statusBadge.textContent = 'Обработка';
+            statusBadge.style.background = '#fff3cd';
+            statusBadge.style.color = '#856404';
+            copyBtn.style.display = 'none';
 
             try {
                 var response = await fetch('/upload', {
@@ -52,14 +415,44 @@
                 var data = await response.json();
 
                 if (data.error) {
-                    resultDiv.textContent = 'Ошибка: ' + data.error;
+                    resultDiv.className = 'result-box error';
+                    resultDiv.textContent = '❌ Ошибка: ' + data.error;
+                    statusBadge.textContent = 'Ошибка';
+                    statusBadge.style.background = '#f8d7da';
+                    statusBadge.style.color = '#721c24';
                 } else {
-                    resultDiv.textContent = data.text;
+                    resultDiv.className = 'result-box success';
+                    resultDiv.textContent = data.text || 'Текст не найден';
+                    statusBadge.textContent = 'Готово';
+                    statusBadge.style.background = '#d4edda';
+                    statusBadge.style.color = '#155724';
+                    copyBtn.style.display = 'inline-block';
                 }
             } catch (error) {
-                resultDiv.textContent = 'Ошибка: ' + error;
+                resultDiv.className = 'result-box error';
+                resultDiv.textContent = '❌ Ошибка: ' + error;
+                statusBadge.textContent = 'Ошибка';
+                statusBadge.style.background = '#f8d7da';
+                statusBadge.style.color = '#721c24';
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '🚀 Распознать текст';
             }
         });
+
+        // Функция копирования результата
+        function copyResult() {
+            const resultText = document.getElementById('result').textContent;
+            navigator.clipboard.writeText(resultText).then(() => {
+                const copyBtn = document.getElementById('copyBtn');
+                copyBtn.textContent = '✅ Скопировано!';
+                setTimeout(() => {
+                    copyBtn.textContent = '📋 Копировать текст';
+                }, 2000);
+            }).catch(err => {
+                console.error('Ошибка копирования:', err);
+            });
+        }
     </script>
 </body>
 </html>
