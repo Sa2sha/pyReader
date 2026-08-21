@@ -66,42 +66,73 @@ def find_text_area(image):
     return image
 
 
+def ocr_tesseract(image, config=None):
+    """
+    Распознавание через Tesseract с простыми настройками
 
+    config: dict с ключами:
+        - lang: строка языков ('rus' или 'eng')
+        - psm: режим разметки страницы
+    """
+    if config is None:
+        config = {}
 
-def ocr_tesseract(image):
-    """Распознавание через Tesseract"""
-    text = pytesseract.image_to_string(image, lang='rus+eng')
+    # Получаем параметры с значениями по умолчанию
+    lang = config.get('lang', 'rus')
+    psm = config.get('psm', '3')
+
+    # Формируем строку конфигурации (убираем проблемные параметры)
+    tess_config = f'--psm {psm}'
+
+    # Распознаем текст
+    text = pytesseract.image_to_string(
+        image,
+        lang=lang,
+        config=tess_config
+    )
+
     return text
 
 
-def ocr_easyocr(image):
-    """Распознавание через EasyOCR"""
+def ocr_easyocr(image, config=None):
+    """
+    Распознавание через EasyOCR с простыми настройками
+
+    config: dict с ключами:
+        - detail: насколько детальный результат (0 - просто текст)
+    """
     global easyocr_reader
 
     if easyocr_reader is None:
         print("Инициализация EasyOCR (займет время)...")
         easyocr_reader = easyocr.Reader(['ru', 'en'], gpu=False)
 
+    if config is None:
+        config = {}
+
     img_array = np.array(image)
 
-    result = easyocr_reader.readtext(img_array, detail=0, paragraph=True)
+    # Простое распознавание без сложных параметров
+    result = easyocr_reader.readtext(
+        img_array,
+        detail=0,
+        paragraph=True
+    )
+
     return '\n'.join(result)
 
 
-
-
-
-def process_image(image, engine='tesseract'):
+def process_image(image, engine='tesseract', ocr_config=None):
+    """Обработка изображения и распознавание текста"""
     image = find_text_area(image)
-
     image = preprocess_image(image)
 
     if engine == 'tesseract':
-        text = ocr_tesseract(image)
+        text = ocr_tesseract(image, ocr_config)
     elif engine == 'easyocr':
-        text = ocr_easyocr(image)
+        text = ocr_easyocr(image, ocr_config)
     else:
-        text = ocr_tesseract(image)
+        text = ocr_tesseract(image, ocr_config)
 
     return text
 
@@ -112,8 +143,6 @@ def pdf_to_images(pdf_path):
     images = []
 
     for page in doc:
-        # Конвертируем страницу в изображение
-        # matrix=fitz.Matrix(2, 2) для лучшего качества (2x zoom)
         pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
         img_data = pix.tobytes("png")
         img = Image.open(io.BytesIO(img_data))
@@ -121,7 +150,6 @@ def pdf_to_images(pdf_path):
 
     doc.close()
     return images
-
 
 
 @app.route('/')
@@ -147,6 +175,16 @@ def upload():
         if ext not in ALLOWED_EXTENSIONS:
             return jsonify({'error': 'Неверный формат файла'}), 400
 
+        # Получаем настройки OCR из формы (упрощенные)
+        ocr_config = {}
+
+        if engine == 'tesseract':
+            # Простые настройки
+            ocr_config['lang'] = request.form.get('language', 'rus+eng')
+            ocr_config['psm'] = request.form.get('layout', '3')
+
+        # Для easyocr настройки не нужны - он сам все определяет
+
         filename = file.filename
         filepath = os.path.join(UPLOAD_FOLDER, filename)
         file.save(filepath)
@@ -157,12 +195,12 @@ def upload():
             # Конвертируем PDF в изображения
             images = pdf_to_images(filepath)
             for i, img in enumerate(images):
-                page_text = process_image(img, engine)
-                all_text += f"=== Страница {i + 1} ===\n{page_text}\n\n"
+                page_text = process_image(img, engine, ocr_config)
+                all_text += page_text
         else:
             # Обрабатываем обычное изображение
             image = Image.open(filepath)
-            all_text = process_image(image, engine)
+            all_text = process_image(image, engine, ocr_config)
 
         # Удаляем временный файл
         os.remove(filepath)
@@ -175,7 +213,6 @@ def upload():
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
 
 
 if __name__ == '__main__':

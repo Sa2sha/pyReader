@@ -133,6 +133,34 @@
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
 
+        .settings-box {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 10px;
+        }
+
+        .setting-item {
+            margin-bottom: 20px;
+        }
+
+        .setting-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .setting-item label {
+            font-size: 0.95em;
+            margin-bottom: 8px;
+            color: #555;
+        }
+
+        .setting-description {
+            font-size: 0.85em;
+            color: #888;
+            margin-top: 5px;
+            font-style: italic;
+        }
+
         .btn-submit {
             width: 100%;
             padding: 15px;
@@ -145,6 +173,7 @@
             cursor: pointer;
             transition: all 0.3s ease;
             letter-spacing: 1px;
+            margin-top: 20px;
         }
 
         .btn-submit:hover:not(:disabled) {
@@ -315,9 +344,47 @@
             <div class="form-group">
                 <label>🔍 Выберите OCR движок:</label>
                 <select name="ocr_engine" id="ocrEngine">
-                    <option value="tesseract">Tesseract</option>
-                    <option value="easyocr">EasyOCR</option>
+                    <option value="tesseract">⚡ Tesseract (быстрый)</option>
+                    <option value="easyocr">🧠 EasyOCR (умный)</option>
                 </select>
+            </div>
+
+            <!-- Настройки Tesseract -->
+            <div class="form-group" id="tesseractSettings">
+                <label>⚙️ Настройки распознавания:</label>
+                <div class="settings-box">
+                    <div class="setting-item">
+                        <label>Язык документа:</label>
+                        <select name="language">
+                            <option value="rus+eng">🇷🇺 Русский + Английский (рекомендуется)</option>
+                            <option value="rus">🇷🇺 Только русский</option>
+                            <option value="eng">🇬🇧 Только английский</option>
+                        </select>
+                        <div class="setting-description">Выберите язык текста в документе</div>
+                    </div>
+
+                    <div class="setting-item">
+                        <label>Тип документа:</label>
+                        <select name="layout">
+                            <option value="3">📄 Обычный документ (рекомендуется)</option>
+                            <option value="1">📖 Книга или журнал</option>
+                            <option value="6">📰 Газета или колонки</option>
+                            <option value="7">📝 Одна строка текста</option>
+                            <option value="11">🔍 Разреженный текст</option>
+                        </select>
+                        <div class="setting-description">Укажите, как расположен текст на странице</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Информация для EasyOCR -->
+            <div class="form-group" id="easyocrInfo" style="display: none;">
+                <div class="settings-box">
+                    <p style="color: #666; text-align: center;">
+                        🧠 <strong>EasyOCR</strong> автоматически определяет язык и расположение текста.<br>
+                        Дополнительные настройки не требуются.
+                    </p>
+                </div>
             </div>
 
             <button type="submit" class="btn-submit" id="submitBtn">
@@ -343,6 +410,21 @@
     </div>
 
     <script>
+        // Показ настроек в зависимости от выбранного движка
+        document.getElementById('ocrEngine').addEventListener('change', function() {
+            var engine = this.value;
+            var tesseractSettings = document.getElementById('tesseractSettings');
+            var easyocrInfo = document.getElementById('easyocrInfo');
+
+            if (engine === 'tesseract') {
+                tesseractSettings.style.display = 'block';
+                easyocrInfo.style.display = 'none';
+            } else {
+                tesseractSettings.style.display = 'none';
+                easyocrInfo.style.display = 'block';
+            }
+        });
+
         // Обработчик выбора файла
         document.getElementById('fileInput').addEventListener('change', function(e) {
             const file = e.target.files[0];
@@ -351,16 +433,12 @@
             const fileUploadWrapper = document.getElementById('fileUploadWrapper');
 
             if (file) {
-                // Обновляем текст в label
                 fileLabel.innerHTML = `
                     <span class="icon">✅</span>
                     <span>Файл выбран</span>
                 `;
-
-                // Добавляем класс для зеленой рамки
                 fileUploadWrapper.classList.add('has-file');
 
-                // Показываем информацию о файле
                 const fileSize = (file.size / 1024).toFixed(2);
                 fileInfo.innerHTML = `
                     <strong>Имя файла:</strong> ${file.name}<br>
@@ -369,7 +447,6 @@
                 `;
                 fileInfo.classList.add('show');
             } else {
-                // Сбрасываем если файл не выбран
                 fileLabel.innerHTML = `
                     <span class="icon">📂</span>
                     <span>Нажмите для выбора файла</span>
@@ -389,7 +466,6 @@
             var statusBadge = document.getElementById('statusBadge');
             var copyBtn = document.getElementById('copyBtn');
 
-            // Проверка наличия файла
             var fileInput = document.getElementById('fileInput');
             if (!fileInput.files.length) {
                 alert('Пожалуйста, выберите файл');
