@@ -175,40 +175,43 @@ def upload():
         if ext not in ALLOWED_EXTENSIONS:
             return jsonify({'error': 'Неверный формат файла'}), 400
 
-        # Получаем настройки OCR из формы (упрощенные)
         ocr_config = {}
 
         if engine == 'tesseract':
-            # Простые настройки
             ocr_config['lang'] = request.form.get('language', 'rus+eng')
             ocr_config['psm'] = request.form.get('layout', '3')
 
-        # Для easyocr настройки не нужны - он сам все определяет
-
         filename = file.filename
-        filepath = os.path.join(UPLOAD_FOLDER, filename)
-        file.save(filepath)
+
+        file_bytes = file.read()
 
         all_text = ""
 
         if ext == 'pdf':
-            # Конвертируем PDF в изображения
+            filepath = os.path.join(UPLOAD_FOLDER, filename)
+            with open(filepath, 'wb') as f:
+                f.write(file_bytes)
+
             images = pdf_to_images(filepath)
             for i, img in enumerate(images):
                 page_text = process_image(img, engine, ocr_config)
                 all_text += page_text
+
+            os.remove(filepath)
         else:
-            # Обрабатываем обычное изображение
-            image = Image.open(filepath)
+            image = Image.open(io.BytesIO(file_bytes))
             all_text = process_image(image, engine, ocr_config)
 
-        # Удаляем временный файл
-        os.remove(filepath)
+        # file_bytes - байты файла (можно сохранить в БД)
+        # all_text - распознанный текст
+        # filename - имя файла
+        # engine - какой OCR использовался
 
         return jsonify({
             'text': all_text,
             'engine': engine,
-            'filename': filename
+            'filename': filename,
+            'file_size': len(file_bytes)  # размер файла в байтах
         })
 
     except Exception as e:
