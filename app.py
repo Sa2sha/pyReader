@@ -16,9 +16,91 @@ import easyocr
 # Для PDF
 import fitz
 
+# Для БД
+import psycopg2
+
 app = Flask(__name__)
 
-pytesseract.pytesseract.tesseract_cmd = r"D:\Tesseract-OCR\tesseract.exe"
+# БД
+DB_CONFIG = {
+    'host': 'localhost',
+    'port': 5432,
+    'database': 'ocr_database', # Название БД
+    'user': 'postgres',
+    'password': '5503' # Пароль, который указывали при создании БД
+}
+
+
+def save_to_database(text, photo):
+    conn = None
+    cursor = None
+
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            INSERT INTO documents (text, photo)
+            VALUES (%s, %s)
+            RETURNING id
+            """,
+            (text, psycopg2.Binary(photo))
+        )
+
+        document_id = cursor.fetchone()[0]
+        conn.commit()
+
+        return document_id
+
+    except Exception as e:
+        print(f"БД недоступна, результат не сохранён: {e}")
+        return None
+
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+# История
+def get_history():
+    conn = None
+    cursor = None
+
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT id, text
+            FROM documents
+            ORDER BY id DESC
+        """)
+
+        rows = cursor.fetchall()
+
+        history = []
+
+        for row in rows:
+            history.append({
+                'id': row[0],
+                'text': row[1]
+            })
+
+        return history
+
+    except Exception as e:
+        print(f"БД недоступна, история недоступна: {e}")
+        return []
+
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+pytesseract.pytesseract.tesseract_cmd = r"E:\Tesseract-OCR\tesseract.exe"
 
 # Папка для временных файлов
 UPLOAD_FOLDER = 'uploads'
@@ -392,16 +474,34 @@ def upload():
         # filename - имя файла
         # engine - какой OCR использовался
 
+        # Пытаемся сохранить результат в PostgreSQL
+        document_id = save_to_database(all_text, file_bytes)
+
         return jsonify({
+            'id': document_id,
             'text': all_text,
             'engine': engine,
             'filename': filename,
-            'file_size': len(file_bytes)
+            'file_size': len(file_bytes),
+            'saved_to_database': document_id is not None
         })
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/history', methods=['GET'])
+def history():
+    try:
+        history_data = get_history()
+
+        return jsonify({
+            'history': history_data
+        })
+
+    except Exception as e:
+        return jsonify({
+            'error': str(e)
+        }), 500
 if __name__ == '__main__':
     app.run(debug=True)
