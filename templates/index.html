@@ -300,6 +300,67 @@
                 grid-template-columns: 1fr;
             }
         }
+        .history-section {
+            margin-top: 30px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+        }
+
+        .history-section h2 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .history-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .history-item {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 15px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .history-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .history-id {
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 8px;
+        }
+
+        .history-text {
+            color: #333;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+
+            max-height: 300px;
+            overflow-y: auto;
+
+            padding: 10px;
+            margin-top: 8px;
+
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            background: #fafafa;
+        }
+
+        .history-empty {
+            text-align: center;
+            color: #888;
+            padding: 20px;
+        }
+
     </style>
 </head>
 <body>
@@ -390,6 +451,9 @@
                                 <input type="range" id="text_threshold" min="0" max="1" step="0.05" value="0.4" oninput="updateTextThreshold()">
                                 <span class="range-value" id="text_threshold_value">0.40</span>
                             </div>
+                            <div class="setting-description">
+                                💡 Чем выше значение, тем строже фильтр. Низкое значение (0.2) распознает больше текста, но с ошибками. Высокое (0.7) — только уверенный текст.
+                            </div>
                         </div>
 
                         <div class="setting-item">
@@ -397,6 +461,9 @@
                             <div class="range-container">
                                 <input type="range" id="low_text" min="0" max="1" step="0.05" value="0.2" oninput="updateLowText()">
                                 <span class="range-value" id="low_text_value">0.20</span>
+                            </div>
+                            <div class="setting-description">
+                                💡 Минимальная уверенность для слабого текста. Текст ниже этого порога будет отброшен.
                             </div>
                         </div>
 
@@ -406,6 +473,9 @@
                                 <input type="range" id="add_margin" min="0" max="1" step="0.05" value="0.2" oninput="updateAddMargin()">
                                 <span class="range-value" id="add_margin_value">0.20</span>
                             </div>
+                            <div class="setting-description">
+                                💡 Насколько расширять область вокруг найденного текста. Больше = захватывает соседние элементы.
+                            </div>
                         </div>
 
                         <div class="setting-item">
@@ -414,7 +484,45 @@
                                 <input type="range" id="width_ths" min="0" max="1" step="0.05" value="0.5" oninput="updateWidthThs()">
                                 <span class="range-value" id="width_ths_value">0.50</span>
                             </div>
-                            <div class="setting-description">Объединение блоков текста по ширине</div>
+                            <div class="setting-description">
+                                💡 Объединение текстовых блоков по ширине. Больше = объединяет разрозненные слова в строки.
+                            </div>
+                        </div>
+
+                        <div class="setting-item">
+                            <label>Contrast THS:</label>
+                            <div class="range-container">
+                                <input type="range"
+                                       id="contrast_ths"
+                                       min="0"
+                                       max="1"
+                                       step="0.01"
+                                       value="0.05"
+                                       oninput="updateContrastThs()">
+                                <span class="range-value"
+                                      id="contrast_ths_value">0.05</span>
+                            </div>
+                            <div class="setting-description">
+                                💡 Порог контрастности для обнаружения текста. Низкое значение = чувствительнее к слабому тексту.
+                            </div>
+                        </div>
+
+                        <div class="setting-item">
+                            <label>Adjust Contrast:</label>
+                            <div class="range-container">
+                                <input type="range"
+                                       id="adjust_contrast"
+                                       min="0"
+                                       max="1"
+                                       step="0.01"
+                                       value="0.80"
+                                       oninput="updateAdjustContrast()">
+                                <span class="range-value"
+                                      id="adjust_contrast_value">0.80</span>
+                            </div>
+                            <div class="setting-description">
+                                💡 Автоматическая коррекция контраста. 1.0 = максимальная коррекция, 0 = без коррекции.
+                            </div>
                         </div>
 
                         <div class="setting-item checkbox-item">
@@ -463,7 +571,7 @@
                     <div class="setting-item">
                         <label>Порог белого:</label>
                         <div class="range-container">
-                            <input type="range" id="white_threshold" min="200" max="255" step="1" value="250" oninput="updateWhiteThreshold()">
+                            <input type="range" id="white_threshold" min="1" max="255" step="1" value="250" oninput="updateWhiteThreshold()">
                             <span class="range-value" id="white_threshold_value">250</span>
                         </div>
                     </div>
@@ -508,6 +616,14 @@
                 </button>
             </div>
         </div>
+        <!--   -->
+        <div class="history-section">
+            <h2> История сканов</h2>
+
+            <div id="historyList" class="history-list">
+                Загрузка истории...
+            </div>
+        </div>
     </div>
 
     <script>
@@ -519,10 +635,25 @@
         // Переключение настроек OCR
         document.getElementById('ocrEngine').addEventListener('change', function() {
             var engine = this.value;
+
+            // Показываем/скрываем настройки Tesseract
             document.getElementById('tesseractSettings').style.display =
                 engine === 'tesseract' ? 'block' : 'none';
+
+            // Показываем/скрываем настройки EasyOCR
             document.getElementById('easyocrSettings').style.display =
                 engine === 'easyocr' ? 'block' : 'none';
+
+            // Скрываем/показываем порог бинаризации
+            var thresholdItem = document.getElementById('threshold').closest('.setting-item');
+            if (engine === 'easyocr') {
+                thresholdItem.style.display = 'none';  // Скрываем для EasyOCR
+            } else {
+                thresholdItem.style.display = 'block';  // Показываем для Tesseract
+            }
+
+            // Обновляем предпросмотр
+            updatePreview();
         });
 
         // Обработчик выбора файла
@@ -569,6 +700,28 @@
             } catch (error) {
                 console.error('Ошибка:', error);
             }
+        }
+
+        function updateContrastThs() {
+            document.getElementById(
+                'contrast_ths_value'
+            ).textContent =
+                parseFloat(
+                    document.getElementById(
+                        'contrast_ths'
+                    ).value
+                ).toFixed(2);
+        }
+
+        function updateAdjustContrast() {
+            document.getElementById(
+                'adjust_contrast_value'
+            ).textContent =
+                parseFloat(
+                    document.getElementById(
+                        'adjust_contrast'
+                    ).value
+                ).toFixed(2);
         }
 
         // Функции обновления значений
@@ -644,6 +797,7 @@
 
             previewTimeout = setTimeout(async function() {
                 var formData = new FormData();
+                formData.append('engine', document.getElementById('ocrEngine').value); // ДОБАВЛЕНО
                 formData.append('contrast', document.getElementById('contrast').value);
                 formData.append('brightness', document.getElementById('brightness').value);
                 formData.append('threshold', document.getElementById('threshold').value);
@@ -672,6 +826,7 @@
             }, 100);
         }
 
+
         // Сброс настроек
         function resetSettings() {
             document.getElementById('ocrEngine').value = 'tesseract';
@@ -691,17 +846,27 @@
             document.getElementById('apply_denoise').checked = false;
             document.getElementById('apply_sharpen').checked = false;
             document.getElementById('chars_to_remove').value = '~][|';
+            document.getElementById('contrast_ths').value = '0.05';
+            document.getElementById('adjust_contrast').value = '0.80';
 
+            // Показываем настройки Tesseract
             document.getElementById('tesseractSettings').style.display = 'block';
             document.getElementById('easyocrSettings').style.display = 'none';
 
+            // Показываем порог бинаризации
+            var thresholdItem = document.getElementById('threshold').closest('.setting-item');
+            thresholdItem.style.display = 'block';
+
+            // Обновляем значения ползунков
             updateRangeValues();
 
+            // Показываем оригинальное изображение
             if (originalPreview) {
                 document.getElementById('previewArea').innerHTML =
                     `<img src="${originalPreview}" alt="Original">`;
             }
         }
+
 
         // Обработка файла
         async function processFile() {
@@ -729,6 +894,8 @@
             formData.append('apply_denoise', document.getElementById('apply_denoise').checked);
             formData.append('apply_sharpen', document.getElementById('apply_sharpen').checked);
             formData.append('chars_to_remove', document.getElementById('chars_to_remove').value);
+            formData.append('contrast_ths', document.getElementById('contrast_ths').value);
+            formData.append('adjust_contrast', document.getElementById('adjust_contrast').value);
 
             var resultDiv = document.getElementById('result');
             var submitBtn = document.getElementById('submitBtn');
@@ -755,6 +922,8 @@
                     resultDiv.className = 'result-box success';
                     resultDiv.textContent = data.text || 'Текст не найден';
                     copyBtn.style.display = 'inline-block';
+
+                    loadHistory();
                 }
             } catch (error) {
                 resultDiv.className = 'result-box error';
@@ -776,9 +945,54 @@
                 }, 2000);
             });
         }
+        async function loadHistory() {
+            const historyList = document.getElementById('historyList');
+
+            historyList.textContent = 'Загрузка истории...';
+
+            try {
+                const response = await fetch('/history');
+                const data = await response.json();
+
+                if (data.error) {
+                    historyList.innerHTML =
+                        `<div class="history-empty">Ошибка: ${data.error}</div>`;
+                    return;
+                }
+
+                if (!data.history || data.history.length === 0) {
+                    historyList.innerHTML =
+                        '<div class="history-empty">История пока пуста</div>';
+                    return;
+                }
+
+                historyList.innerHTML = '';
+
+                data.history.forEach(scan => {
+                    const item = document.createElement('div');
+                    item.className = 'history-item';
+
+                    item.innerHTML = `
+                        <div class="history-id">Скан №${scan.id}</div>
+                        <div class="history-text"></div>
+                    `;
+
+                    item.querySelector('.history-text').textContent =
+                        scan.text || 'Текст не найден';
+
+                    historyList.appendChild(item);
+                });
+
+            } catch (error) {
+                historyList.innerHTML =
+                    `<div class="history-empty">Ошибка загрузки истории: ${error}</div>`;
+            }
+        }
 
         // Инициализация
         updateRangeValues();
+        loadHistory();
+
     </script>
 </body>
 </html>

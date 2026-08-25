@@ -16,7 +16,89 @@ import easyocr
 # Для PDF
 import fitz
 
+# Для БД
+import psycopg2
+
 app = Flask(__name__)
+
+# БД
+DB_CONFIG = {
+    'host': 'localhost',
+    'port': 5432,
+    'database': 'ocr_database', # Название БД
+    'user': 'postgres',
+    'password': '5503' # Пароль, который указывали при создании БД
+}
+
+
+def save_to_database(text, photo):
+    conn = None
+    cursor = None
+
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            INSERT INTO documents (text, photo)
+            VALUES (%s, %s)
+            RETURNING id
+            """,
+            (text, psycopg2.Binary(photo))
+        )
+
+        document_id = cursor.fetchone()[0]
+        conn.commit()
+
+        return document_id
+
+    except Exception as e:
+        print(f"БД недоступна, результат не сохранён: {e}")
+        return None
+
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+# История
+def get_history():
+    conn = None
+    cursor = None
+
+    try:
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT id, text
+            FROM documents
+            ORDER BY id DESC
+        """)
+
+        rows = cursor.fetchall()
+
+        history = []
+
+        for row in rows:
+            history.append({
+                'id': row[0],
+                'text': row[1]
+            })
+
+        return history
+
+    except Exception as e:
+        print(f"БД недоступна, история недоступна: {e}")
+        return []
+
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 pytesseract.pytesseract.tesseract_cmd = r"D:\Tesseract-OCR\tesseract.exe"
 
@@ -28,13 +110,14 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'pdf'}
 
 easyocr_reader = None
+easyocr_languages = None
 
 # Глобальная переменная для хранения загруженного изображения
 current_image = None
 
 
 def preprocess_image(image, contrast=2.0, brightness=1.0, threshold=128,
-                     apply_denoise=False, apply_sharpen=False):
+                     apply_denoise=False, apply_sharpen=False, apply_binarization=False):
     """
     Подготовка изображения для лучшего распознавания
     """
@@ -50,16 +133,23 @@ def preprocess_image(image, contrast=2.0, brightness=1.0, threshold=128,
     enhancer = ImageEnhance.Contrast(image)
     image = enhancer.enhance(float(contrast))
 
+    # Увеличение изображения
+    width, height = image.size
+    if width < 1500:
+        scale = 2
+        image = image.resize((width * scale, height * scale), Image.LANCZOS)
+
     # Удаление шума
     if apply_denoise:
-        image = image.filter(ImageFilter.MedianFilter(size=3))
+        image = image.filter(ImageFilter.MedianFilter(size=5))
 
     # Повышение резкости
     if apply_sharpen:
-        image = image.filter(ImageFilter.SHARPEN)
+        image = image.filter(ImageFilter.UnsharpMask(radius=2, percent=200, threshold=3))
 
     # Бинаризация
-    image = image.point(lambda x: 255 if x > int(threshold) else 0)
+    if apply_binarization:
+        image = image.point(lambda x: 255 if x > int(threshold) else 0)
 
     return image
 
@@ -123,10 +213,7 @@ def ocr_easyocr(image, config=None):
     Распознавание через EasyOCR с настройками
     """
     global easyocr_reader
-
-    # if easyocr_reader is None:
-    #     print("Инициализация EasyOCR...")
-    #     easyocr_reader = easyocr.Reader(['ru', 'en'], gpu=False)
+    global easyocr_languages
 
     if config is None:
         config = {}
@@ -137,6 +224,8 @@ def ocr_easyocr(image, config=None):
     low_text = float(config.get('low_text', 0.2))
     add_margin = float(config.get('add_margin', 0.2))
     width_ths = float(config.get('width_ths', 0.5))
+    contrast_ths = float(config.get('contrast_ths', 0.05))
+    adjust_contrast = float(config.get('adjust_contrast', 0.8))
     detail = int(config.get('detail', 0))
     paragraph = config.get('paragraph', True)
 
@@ -151,29 +240,28 @@ def ocr_easyocr(image, config=None):
         languages = ['ru', 'en']
 
     # Пересоздаем reader если языки изменились
-    if easyocr_reader is None:
+    if easyocr_reader is None or easyocr_languages != tuple(languages):
         easyocr_reader = easyocr.Reader(languages, gpu=False)
+        easyocr_languages = tuple(languages)
 
     img_array = np.array(image)
 
     result = easyocr_reader.readtext(
         img_array,
+        decoder='beamsearch',
+        beamWidth=10,
         detail=detail,
         paragraph=paragraph,
         text_threshold=text_threshold,
         low_text=low_text,
         add_margin=add_margin,
-        width_ths=width_ths
+        width_ths=width_ths,
+        contrast_ths = contrast_ths,
+        adjust_contrast = adjust_contrast
     )
 
-    if detail == 0:
-        return '\n'.join(result)
-    else:
-        # Если detail=1, возвращаем текст с координатами
-        text_parts = []
-        for detection in result:
-            text_parts.append(detection[1])
-        return '\n'.join(text_parts)
+
+    return '\n'.join(result)
 
 
 def process_image(image, engine='tesseract', ocr_config=None, preprocess_config=None):
@@ -197,14 +285,13 @@ def process_image(image, engine='tesseract', ocr_config=None, preprocess_config=
 
     # Обработка
     image = find_text_area(image, padding, white_threshold)
-    image = preprocess_image(image, contrast, brightness, threshold, apply_denoise, apply_sharpen)
 
     # Распознавание
-    if engine == 'tesseract':
-        text = ocr_tesseract(image, ocr_config)
-    elif engine == 'easyocr':
+    if engine == 'easyocr':
+        image = preprocess_image(image, contrast, brightness, threshold, apply_denoise, apply_sharpen, False)
         text = ocr_easyocr(image, ocr_config)
     else:
+        image = preprocess_image(image, contrast, brightness, threshold, apply_denoise, apply_sharpen, True)
         text = ocr_tesseract(image, ocr_config)
 
     # Очистка текста
@@ -299,13 +386,21 @@ def preview():
         white_threshold = int(request.form.get('white_threshold', '250'))
         apply_denoise = request.form.get('apply_denoise', 'false').lower() == 'true'
         apply_sharpen = request.form.get('apply_sharpen', 'false').lower() == 'true'
+        engine = request.form.get('engine', 'tesseract')
 
         # Копируем изображение
         img = current_image.copy()
 
-        # Применяем обработку
+        # Находим область текста
         img = find_text_area(img, padding, white_threshold)
-        img = preprocess_image(img, contrast, brightness, threshold, apply_denoise, apply_sharpen)
+
+        if engine == 'easyocr':
+            apply_binarization = False
+        else:
+            apply_binarization = True
+
+        # Применяем обработку
+        img = preprocess_image(img, contrast, brightness, threshold, apply_denoise, apply_sharpen, apply_binarization)
 
         return jsonify({
             'preview': image_to_base64(img)
@@ -315,7 +410,6 @@ def preview():
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/upload', methods=['POST'])
 @app.route('/upload', methods=['POST'])
 def upload():
     """Обработка загрузки файла и распознавание"""
@@ -350,6 +444,8 @@ def upload():
             ocr_config['add_margin'] = request.form.get('add_margin', '0.2')
             ocr_config['width_ths'] = request.form.get('width_ths', '0.5')
             ocr_config['paragraph'] = request.form.get('paragraph', 'true').lower() == 'true'
+            ocr_config['contrast_ths'] = request.form.get('contrast_ths', '0.05')
+            ocr_config['adjust_contrast'] = request.form.get('adjust_contrast', '0.8')
 
         # Настройки предобработки
         preprocess_config = {
@@ -392,16 +488,38 @@ def upload():
         # filename - имя файла
         # engine - какой OCR использовался
 
+        # Пытаемся сохранить результат в PostgreSQL
+        document_id = save_to_database(all_text, file_bytes)
+
         return jsonify({
+            'id': document_id,
             'text': all_text,
             'engine': engine,
             'filename': filename,
-            'file_size': len(file_bytes)
+            'file_size': len(file_bytes),
+            'saved_to_database': document_id is not None
         })
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/history', methods=['GET'])
+def history():
+    try:
+        history_data = get_history()
+
+        return jsonify({
+            'history': history_data
+        })
+
+    except Exception as e:
+        return jsonify({
+            'error': str(e)
+        }), 500
+
+
 if __name__ == '__main__':
     app.run(debug=True)
+
+
