@@ -32,9 +32,11 @@ DB_CONFIG = {
 
 
 def save_to_database(text, photo):
-    conn = psycopg2.connect(**DB_CONFIG)
+    conn = None
+    cursor = None
 
     try:
+        conn = psycopg2.connect(**DB_CONFIG)
         cursor = conn.cursor()
 
         cursor.execute(
@@ -47,24 +49,27 @@ def save_to_database(text, photo):
         )
 
         document_id = cursor.fetchone()[0]
-
         conn.commit()
 
         return document_id
 
-    except Exception:
-        conn.rollback()
-        raise
+    except Exception as e:
+        print(f"БД недоступна, результат не сохранён: {e}")
+        return None
 
     finally:
-        cursor.close()
-        conn.close()
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 # История
 def get_history():
-    conn = psycopg2.connect(**DB_CONFIG)
+    conn = None
+    cursor = None
 
     try:
+        conn = psycopg2.connect(**DB_CONFIG)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -85,9 +90,15 @@ def get_history():
 
         return history
 
+    except Exception as e:
+        print(f"БД недоступна, история недоступна: {e}")
+        return []
+
     finally:
-        cursor.close()
-        conn.close()
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 pytesseract.pytesseract.tesseract_cmd = r"E:\Tesseract-OCR\tesseract.exe"
 
@@ -463,7 +474,7 @@ def upload():
         # filename - имя файла
         # engine - какой OCR использовался
 
-        # Сохраняем результат в PostgreSQL
+        # Пытаемся сохранить результат в PostgreSQL
         document_id = save_to_database(all_text, file_bytes)
 
         return jsonify({
@@ -472,7 +483,7 @@ def upload():
             'engine': engine,
             'filename': filename,
             'file_size': len(file_bytes),
-            'saved_to_database': True
+            'saved_to_database': document_id is not None
         })
 
     except Exception as e:
