@@ -9,12 +9,14 @@
 
 ### Шаг 1: Скачайте Docker образ
 
-```bash
+```
 docker pull ghcr.io/sa2sha/pyreader:latest
 ```
 
 ### Шаг 2: Создайте папку для загрузок
+```
 mkdir -p /opt/ocr-service/uploads
+```
 
 ### Шаг 3: Запустите контейнер
 ```
