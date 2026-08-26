@@ -1,0 +1,9 @@
+services:
+  web:
+    build: .
+    container_name: ocr_web
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./uploads:/app/uploads

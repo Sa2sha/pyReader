@@ -100,7 +100,7 @@ def get_history():
         if conn:
             conn.close()
 
-pytesseract.pytesseract.tesseract_cmd = r"D:\Tesseract-OCR\tesseract.exe"
+# pytesseract.pytesseract.tesseract_cmd = r"Tesseract-OCR\tesseract.exe"
 
 # Папка для временных файлов
 UPLOAD_FOLDER = 'uploads'
